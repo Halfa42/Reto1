@@ -101,7 +101,7 @@ class Cuerpo:
         self.bob_height = 1.0
         
         # *** CAMBIO: Se levanta un poco mas el robot ***
-        self.base_height = 5.5
+        self.base_height = 6.5
         
         self.brazo_izq = Brazo(filepath="obj/robot/brazoizq.obj")
         self.brazo_der = Brazo(filepath="obj/robot/brazoder.obj")

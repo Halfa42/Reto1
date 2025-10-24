@@ -4,8 +4,9 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import math
 
-# Se importa la clase principal del robot
-from robot import Cuerpo
+# Se importa la clases principales
+from gallina import Gallina
+# from robot import Cuerpo
 
 # --- Configuracion de la Ventana y Camara ---
 screen_width = 1200
@@ -31,8 +32,9 @@ X_MIN, X_MAX = -500, 500
 Y_MIN, Y_MAX = -500, 500
 Z_MIN, Z_MAX = -500, 500
 
-# Objeto principal del robot
-robot = None
+# Objeto principal 
+# robot = None
+gallina = None
 
 def Axis():
     """ Dibuja los ejes X (rojo), Y (verde) y Z (azul). """
@@ -60,12 +62,13 @@ def Axis():
 
 def Init():
     """ Funcion de inicializacion general. """
-    global robot
+    # global robot
+    global gallina
     
     pygame.init()
     screen = pygame.display.set_mode(
         (screen_width, screen_height), DOUBLEBUF | OPENGL)
-    pygame.display.set_caption("Control de Robot")
+    pygame.display.set_caption("Control de Agentes")
 
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
@@ -85,11 +88,18 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
 
-    # Se crea una instancia del robot con los parametros finales
-    robot = Cuerpo(
-        filepath="obj/robot/robot.obj",
+    # Se comenta la creación del robot
+    # robot = Cuerpo(
+    #     filepath="obj/robot/robot.obj",
+    #     initial_pos=[0.0, 0.0, 0.0], 
+    #     scale=3.0
+    # )
+    
+    # Se crea una instancia de la gallina
+    gallina = Gallina(
+        filepath="obj/gallina/gallina.obj",
         initial_pos=[0.0, 0.0, 0.0], 
-        scale=3.0
+        scale=3.0  # Usando la misma escala que el robot
     )
 
 def display():
@@ -107,9 +117,13 @@ def display():
     glVertex3d(DimBoard, 0, -DimBoard)
     glEnd()
     
-    # Dibujar al robot
-    if robot:
-        robot.draw()
+    # Dibujar al robot (comentado)
+    # if robot:
+    #     robot.draw()
+        
+    # Dibujar la gallina
+    if gallina:
+        gallina.draw()
 
 # --- Bucle Principal ---
 done = False
@@ -123,9 +137,13 @@ while not done:
 
     keys = pygame.key.get_pressed()
     
-    # Actualizar el estado del robot basado en la entrada
-    if robot:
-        robot.move(keys)
+    # Actualizar el estado del robot (comentado)
+    # if robot:
+    #     robot.move(keys)
+        
+    # Actualizar el estado de la gallina
+    if gallina:
+        gallina.move(keys)
     
     # Renderizar la escena
     display()
