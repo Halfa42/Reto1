@@ -3,10 +3,12 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import math
+import requests
 
 # Se importa la clases principales
+from robot import Cuerpo
 from gallina import Gallina
-# from robot import Cuerpo
+
 
 # --- Configuracion de la Ventana y Camara ---
 screen_width = 1200
@@ -33,8 +35,8 @@ Y_MIN, Y_MAX = -500, 500
 Z_MIN, Z_MAX = -500, 500
 
 # Objeto principal 
-# robot = None
-gallina = None
+robot = None
+# gallina = None
 
 def Axis():
     """ Dibuja los ejes X (rojo), Y (verde) y Z (azul). """
@@ -62,8 +64,8 @@ def Axis():
 
 def Init():
     """ Funcion de inicializacion general. """
-    # global robot
-    global gallina
+    global robot, gallinas
+    # global gallina
     
     pygame.init()
     screen = pygame.display.set_mode(
@@ -88,19 +90,22 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
 
-    # Se comenta la creación del robot
-    # robot = Cuerpo(
-    #     filepath="obj/robot/robot.obj",
-    #     initial_pos=[0.0, 0.0, 0.0], 
-    #     scale=3.0
-    # )
+    robot = Cuerpo(
+        filepath="obj/robot/robot.obj",
+        initial_pos=[0.0, 0.0, 0.0], 
+        scale=3.0
+    )
+    gallinas = [
+        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[10*i, 0.0, 10*i], scale=2.5)
+        for i in range(3)
+    ]
     
     # Se crea una instancia de la gallina
-    gallina = Gallina(
-        filepath="obj/gallina/gallina.obj",
-        initial_pos=[0.0, 0.0, 0.0], 
-        scale=3.0  # Usando la misma escala que el robot
-    )
+    # gallina = Gallina(
+    #     filepath="obj/gallina/gallina.obj",
+    #     initial_pos=[0.0, 0.0, 0.0], 
+    #     scale=3.0  # Usando la misma escala que el robot
+    # )
 
 def display():
     """ Funcion de dibujado de cada fotograma. """
@@ -117,13 +122,35 @@ def display():
     glVertex3d(DimBoard, 0, -DimBoard)
     glEnd()
     
-    # Dibujar al robot (comentado)
-    # if robot:
-    #     robot.draw()
-        
+    # Dibujar al robot
+    if robot:
+        robot.draw()
+    
+    if robot:
+        robot.draw()
+
+    # Actualizar posiciones desde Julia
+    try:
+        res = requests.get("http://localhost:8000/run")
+        data = res.json()
+        for agent in data["agents"]:
+            if agent["type"] == "Gallina":
+                idx = agent["id"] - 2  # id 1 = robot, los demás gallinas
+                if 0 <= idx < len(gallinas):
+                    x, y = agent["pos"]
+                    gallinas[idx].position = [x * 10, 0.0, y * 10]
+    except Exception as e:
+        print("Error al conectar con servidor:", e)
+    
     # Dibujar la gallina
-    if gallina:
-        gallina.draw()
+    for gallina in gallinas:
+        gallina.draw()  
+    
+    # res = requests.get("http://10.50.129.157:8000/run")
+    # data = res.json()
+    # for agent in data['agents']:
+    #     gallina = gallinas[agent['id'] - 1]
+    #     gallina.update(agent['pos'][0] * 10, agent['pos'][1] * 10)
 
 # --- Bucle Principal ---
 done = False
@@ -138,12 +165,12 @@ while not done:
     keys = pygame.key.get_pressed()
     
     # Actualizar el estado del robot (comentado)
-    # if robot:
-    #     robot.move(keys)
+    if robot:
+        robot.move(keys)
         
     # Actualizar el estado de la gallina
-    if gallina:
-        gallina.move(keys)
+    # if gallina:
+    #     gallina.move(keys)
     
     # Renderizar la escena
     display()

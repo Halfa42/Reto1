@@ -172,13 +172,12 @@ class Cuerpo:
 
         m0 = sx * (cos_r * cos_s - sin_r * sin_s)
         m2 = sx * (-cos_r * sin_s - sin_r * cos_s)
-        m5 = sy
         m8 = sz * (sin_r * cos_s + cos_r * sin_s)
         m10 = sz * (-sin_r * sin_s + cos_r * cos_s)
 
         cuerpo_matrix = [
             m0,  0.0,  m2,  0.0,
-           0.0,   m5, 0.0,  0.0,
+           0.0,   sy, 0.0,  0.0,
             m8,  0.0, m10,  0.0,
             tx,   ty,  tz,  1.0
         ]
