@@ -193,36 +193,109 @@ class Gallina:
         ala_z = -0.31
         self.offset_ala_izq = [ala_x, ala_y, ala_z]
         self.offset_ala_der = [-ala_x, ala_y, ala_z]
+        # Interpoación
+        self.target_position = list(initial_pos) # Pos objetivo recibida de Julia
+        self.previous_position = list(initial_pos)
+        self.movement_speed = 0.5
+        self.is_moving = False
 
+        self.target_rotation_y = 0.0
+        self.rotation_y = 0.0
+
+    def update_from_julia(self, new_x, new_z):
+        new_pos = [new_x, 0.0, new_z]
+        if new_pos != self.target_position:
+            self.previous_position = list(self.position)
+            self.target_position = new_pos
+            
+            self.is_moving = True # Mov: Animación|Interpolación
+            dx = self.target_position[0] - self.position[0] # Giro
+            dz = self.target_position[2] - self.position[2]
+            if abs(dx) > 0.1 or abs(dz) > 0.1: # Evitar calcular atan2 si no hay movimiento
+                angle = math.degrees(math.atan2(-dz, dx)) # -dz Por el sistema de coordenadas
+                self.target_rotation_y = angle
+                
+        # elif self.position[0] == self.target_position[0] and self.position[2] == self.target_position[2]:
+        #     self.is_moving = False
+    
+    def animate_step(self):
+        # Interpolación de posición
+        if self.is_moving:
+            # Mover un paso hacia el target
+            current_x, _, current_z = self.position
+            target_x, _, target_z = self.target_position
+            
+            # Vector de movimiento
+            dx = target_x - current_x
+            dz = target_z - current_z
+            distance = math.sqrt(dx**2 + dz**2) # Distancia restante
+            
+            if distance > self.movement_speed:
+                # Mover el paso de interpolación
+                self.position[0] += dx * (self.movement_speed / distance)
+                self.position[2] += dz * (self.movement_speed / distance)
+            else:
+                # Llegó al destino
+                self.position[0] = target_x
+                self.position[2] = target_z
+                self.is_moving = False
+                
+            # Animación de patas y alas
+            # La velocidad se pasa como True si se está interpolando
+            self.pata_izq.update(True)
+            self.pata_der.update(True)
+            self.ala_izq.update(True)
+            self.ala_der.update(True)
+            
+            # Interpolación de rotación
+            # Solo si el robot no se está moviendo con el teclado ...
+            if abs(self.rotation_y - self.target_rotation_y) > self.turn_speed:
+                # Normaliza la diferencia de ángulo para el giro más corto
+                diff = self.target_rotation_y - self.rotation_y
+                if diff > 180: diff -= 360
+                if diff < -180: diff += 360
+                
+                # Mueve la rotación un paso hacia el target
+                self.rotation_y += math.copysign(self.turn_speed, diff)
+            else:
+                self.rotation_y = self.target_rotation_y
+        
+        else:
+            # Si no hay movimiento, actualiza la animación para que regrese a la posición de reposo
+            self.pata_izq.update(False)
+            self.pata_der.update(False)
+            self.ala_izq.update(False)
+            self.ala_der.update(False)
 
     def move(self, keys):
-        """
-        Procesa la entrada del teclado para actualizar el estado de la gallina.
-        """
-        is_moving = False
+        # """
+        # Procesa la entrada del teclado para actualizar el estado de la gallina.
+        # """
+        # is_moving = False
 
-        if keys[pygame.K_LEFT]:
-            self.rotation_y += self.turn_speed
-        if keys[pygame.K_RIGHT]:
-            self.rotation_y -= self.turn_speed
+        # if keys[pygame.K_LEFT]:
+        #     self.rotation_y += self.turn_speed
+        # if keys[pygame.K_RIGHT]:
+        #     self.rotation_y -= self.turn_speed
             
-        rad = math.radians(self.rotation_y)
-        dir_x = math.cos(rad)
-        dir_z = -math.sin(rad)
+        # rad = math.radians(self.rotation_y)
+        # dir_x = math.cos(rad)
+        # dir_z = -math.sin(rad)
         
-        if keys[pygame.K_UP]:
-            self.position[0] += dir_x * self.speed
-            self.position[2] += dir_z * self.speed
-            is_moving = True
-        if keys[pygame.K_DOWN]:
-            self.position[0] -= dir_x * self.speed
-            self.position[2] -= dir_z * self.speed
-            is_moving = True
+        # if keys[pygame.K_UP]:
+        #     self.position[0] += dir_x * self.speed
+        #     self.position[2] += dir_z * self.speed
+        #     is_moving = True
+        # if keys[pygame.K_DOWN]:
+        #     self.position[0] -= dir_x * self.speed
+        #     self.position[2] -= dir_z * self.speed
+        #     is_moving = True
         
-        self.pata_izq.update(is_moving)
-        self.pata_der.update(is_moving)
-        self.ala_izq.update(is_moving)
-        self.ala_der.update(is_moving)
+        # self.pata_izq.update(is_moving)
+        # self.pata_der.update(is_moving)
+        # self.ala_izq.update(is_moving)
+        # self.ala_der.update(is_moving)
+        pass # LA GALLINA NO SE CONTROLARÁ CON TECLADO
 
     def draw(self):
         """

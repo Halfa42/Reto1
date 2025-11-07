@@ -18,8 +18,8 @@ ZNEAR = 1.0
 ZFAR = 900.0
 
 # --- Posicion de la Camara Fija ---
-EYE_X = 60.0
-EYE_Y = 40.0
+EYE_X = 300.0
+EYE_Y = 200.0
 EYE_Z = 60.0
 CENTER_X = 0.0
 CENTER_Y = 5.0
@@ -125,9 +125,6 @@ def display():
     # Dibujar al robot
     if robot:
         robot.draw()
-    
-    if robot:
-        robot.draw()
 
     # Actualizar posiciones desde Julia
     try:
@@ -138,12 +135,13 @@ def display():
                 idx = agent["id"] - 2  # id 1 = robot, los demás gallinas
                 if 0 <= idx < len(gallinas):
                     x, y = agent["pos"]
-                    gallinas[idx].position = [x * 10, 0.0, y * 10]
+                    gallinas[idx].update_from_julia(x*10, y*10) # *10 para escalar el Grid
     except Exception as e:
-        print("Error al conectar con servidor:", e)
+        pass
     
     # Dibujar la gallina
     for gallina in gallinas:
+        gallina.animate_step()
         gallina.draw()  
     
     # res = requests.get("http://10.50.129.157:8000/run")

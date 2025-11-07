@@ -1,5 +1,6 @@
 using Agents
 using Genie, Genie.Renderer.Json
+using Random
 
 @agent struct Robot(GridAgent{2, Int})
     type::String = "Robot"
@@ -7,11 +8,26 @@ end
 
 @agent struct Gallina(GridAgent{2, Int})
     type::String = "Gallina"
+    target::Tuple{Int, Int} # Nueva posición objetivo
+    is_moving::Bool = false # Indica si se mueve a un target
 end
 
 function agent_step!(a, model)
     if a isa Gallina
-        randomwalk!(a, model)
+        if !a.is_moving
+            neighbor_positions = collect(nearby_positions(a.pos, model, 1)) # Posición válida si no se mueve
+            if !isempty(neighbor_positions)
+                a.target = rand(neighbor_positions)
+                if a.target != a.pos
+                    a.is_moving = true # ¡Iniciar el movimiento!
+                end
+            end
+        else
+            move_agent_single!(a, a.target, model) # Paso animado hacia el target
+            if a.pos == a.target
+                a.is_moving = false 
+            end
+        end
     elseif a isa Robot
         # comportamiento del robot
     end
@@ -28,27 +44,10 @@ function initialize_model(; n_gallinas=3, dims=(20,20))
     add_agent!((10,10), Robot, model)
     for _ in 1:n_gallinas
         pos = random_position(model)
-        add_agent!(pos, Gallina, model)
+        add_agent!(pos, Gallina, model, "Gallina", pos, false)
     end
 
     return model
 end
 
 model = initialize_model()
-
-route("/run") do
-    run!(model, 1)
-    agents_data = [
-        Dict(
-            "id" => a.id,
-            "type" => a.type,
-            "pos" => a.pos
-        ) for a in allagents(model)
-    ]
-    json(Dict("agents" => agents_data))
-end
-
-Genie.config.run_as_server = true
-Genie.config.cors_headers["Access-Control-Allow-Origin"] = "*"
-
-up(host="0.0.0.0", port=8000)
