@@ -48,14 +48,10 @@ class Brazo:
             return
             
         glPushMatrix()
-        
-        # *** INICIO DE LA MODIFICACION ***
-        
+                
         # Determina el angulo a usar, aplicando la inversion si es necesario
         angle_to_use = -self.swing_angle if invert_swing else self.swing_angle
         angle_rad = math.radians(angle_to_use)
-
-        # *** FIN DE LA MODIFICACION ***
         
         tx, ty, tz = position_offset
         cos_a = math.cos(angle_rad)
@@ -92,15 +88,14 @@ class Cuerpo:
         self.scale_factor = scale
         self.rotation_y = 0.0
         
-        self.speed = 0.5
-        self.turn_speed = 1.5
+        self.speed = 0.7
+        self.turn_speed = 2.0
         
         self.vertical_bob = 0.0
         self.bob_angle = 0.0
         self.bob_speed = 8.0 
         self.bob_height = 1.0
         
-        # *** CAMBIO: Se levanta un poco mas el robot ***
         self.base_height = 6.5
         
         self.brazo_izq = Brazo(filepath="obj/robot/brazoizq.obj")
@@ -112,6 +107,23 @@ class Cuerpo:
         
         self.offset_brazo_izq = [offset_x, offset_y, offset_z]
         self.offset_brazo_der = [-offset_x, offset_y, offset_z]
+        
+        # --- Camara ---
+        # Almacena el vector de direccion [x, y, z]
+        self.direction = [0.0, 0.0, 0.0]
+        self.update_direction() # Inicializarlo
+
+        # --- Imprimir posicion ---
+        self.last_known_position = list(self.position)
+
+    # Nueva funcion auxiliar para actualizar la direccion
+    def update_direction(self):
+        """
+        Calcula el vector de direccion frontal basado en la rotacion_y.
+        """
+        rad = math.radians(self.rotation_y)
+        self.direction[0] = math.cos(rad)
+        self.direction[2] = -math.sin(rad)
 
     def move(self, keys):
         """
@@ -125,9 +137,11 @@ class Cuerpo:
         if keys[pygame.K_RIGHT]:
             self.rotation_y -= self.turn_speed
             
-        rad = math.radians(self.rotation_y)
-        dir_x = math.cos(rad)
-        dir_z = -math.sin(rad)
+        # --- Camara ---
+        # Actualizar el vector de direccion DESPUES de cambiar la rotacion
+        self.update_direction()
+        dir_x = self.direction[0]
+        dir_z = self.direction[2]
         
         if keys[pygame.K_UP]:
             self.position[0] += dir_x * self.speed
@@ -148,6 +162,11 @@ class Cuerpo:
             else:
                 self.vertical_bob = 0
                 self.bob_angle = 0
+        
+        # --- Imprimir posicion (en caso de uso)---
+        # if self.position != self.last_known_position:
+        #     print(f"Robot en: x={self.position[0]:.2f}, y={self.position[1]:.2f}, z={self.position[2]:.2f}")
+        #     self.last_known_position = list(self.position) 
         
         self.brazo_izq.update(is_moving)
         self.brazo_der.update(is_moving)
@@ -187,14 +206,7 @@ class Cuerpo:
         
         self.obj.render()
         
-        # *** INICIO DE LA MODIFICACION ***
-        
-        # El brazo izquierdo se dibuja normal
         self.brazo_izq.draw(self.offset_brazo_izq)
-        
-        # Al brazo derecho le pasamos la senal para que invierta el angulo
         self.brazo_der.draw(self.offset_brazo_der, invert_swing=True)
-        
-        # *** FIN DE LA MODIFICACION ***
         
         glPopMatrix()
