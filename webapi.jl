@@ -9,7 +9,8 @@ route("/run") do
         Dict(
             "id" => a.id,
             "type" => a.type,
-            "pos" => a.pos
+            "pos" => a.pos,
+            "speed_mode" => (a isa Gallina ? a.speed_mode : "normal")
         ) for a in allagents(model)
     ]
     json(Dict("agents" => agents_data))

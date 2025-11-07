@@ -161,6 +161,10 @@ class Gallina:
     Clase principal de la gallina. Gestiona el estado general, movimiento,
     y contiene las instancias de las patas y alas.
     """
+    WALK_INTERPOLATION_SPEED = 0.5  
+    FLEE_INTERPOLATION_SPEED = 1.0
+    WALK_ANIMATION_SPEED = 4.0      
+    FLEE_ANIMATION_SPEED = 8.0
     def __init__(self, filepath, initial_pos, scale):
         try:
             self.obj = OBJ(filepath, swapyz=True)
@@ -196,11 +200,34 @@ class Gallina:
         # Interpoación
         self.target_position = list(initial_pos) # Pos objetivo recibida de Julia
         self.previous_position = list(initial_pos)
-        self.movement_speed = 0.5
+        self.movement_speed = self.WALK_INTERPOLATION_SPEED
         self.is_moving = False
 
         self.target_rotation_y = 0.0
         self.rotation_y = 0.0
+        
+        self.pata_izq.march_speed = self.WALK_ANIMATION_SPEED
+        self.pata_der.march_speed = self.WALK_ANIMATION_SPEED
+        self.ala_izq.flap_speed = self.WALK_ANIMATION_SPEED / 1.3 
+        self.ala_der.flap_speed = self.WALK_ANIMATION_SPEED / 1.3
+        
+    def set_speed_mode(self, mode):
+        """
+        Ajusta la velocidad de interpolación y animación 
+        basado en el modo recibido de Julia ("normal" o "fleeing").
+        """
+        if mode == "fleeing":
+            self.movement_speed = self.FLEE_INTERPOLATION_SPEED
+            self.pata_izq.march_speed = self.FLEE_ANIMATION_SPEED
+            self.pata_der.march_speed = self.FLEE_ANIMATION_SPEED
+            self.ala_izq.flap_speed = self.FLEE_ANIMATION_SPEED / 1.3
+            self.ala_der.flap_speed = self.FLEE_ANIMATION_SPEED / 1.3
+        else: # "normal"
+            self.movement_speed = self.WALK_INTERPOLATION_SPEED
+            self.pata_izq.march_speed = self.WALK_ANIMATION_SPEED
+            self.pata_der.march_speed = self.WALK_ANIMATION_SPEED
+            self.ala_izq.flap_speed = self.WALK_ANIMATION_SPEED / 1.3
+            self.ala_der.flap_speed = self.WALK_ANIMATION_SPEED / 1.3
 
     def update_from_julia(self, new_x, new_z):
         new_pos = [new_x, 0.0, new_z]

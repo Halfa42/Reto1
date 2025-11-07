@@ -36,7 +36,11 @@ Z_MIN, Z_MAX = -500, 500
 
 # Objeto principal 
 robot = None
+gallinas = []
 # gallina = None
+
+UPDATE_INTERVAL = 20
+tick_counter = 0
 
 def Axis():
     """ Dibuja los ejes X (rojo), Y (verde) y Z (azul). """
@@ -96,7 +100,7 @@ def Init():
         scale=3.0
     )
     gallinas = [
-        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[10*i, 0.0, 10*i], scale=2.5)
+        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 0.0, 0.0], scale=2.5)
         for i in range(3)
     ]
     
@@ -109,6 +113,7 @@ def Init():
 
 def display():
     """ Funcion de dibujado de cada fotograma. """
+    global tick_counter
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
     Axis()
@@ -127,17 +132,30 @@ def display():
         robot.draw()
 
     # Actualizar posiciones desde Julia
-    try:
-        res = requests.get("http://localhost:8000/run")
-        data = res.json()
-        for agent in data["agents"]:
-            if agent["type"] == "Gallina":
-                idx = agent["id"] - 2  # id 1 = robot, los demás gallinas
-                if 0 <= idx < len(gallinas):
-                    x, y = agent["pos"]
-                    gallinas[idx].update_from_julia(x*10, y*10) # *10 para escalar el Grid
-    except Exception as e:
-        pass
+    if tick_counter % UPDATE_INTERVAL == 0:
+        try:
+            # 1. Obtenemos la posición del robot de Python
+            r_pos_gl = robot.position
+            # 2. La convertimos a coordenadas de la cuadrícula de Julia
+            r_x_grid = round(r_pos_gl[0] / 10)
+            r_z_grid = round(r_pos_gl[2] / 10) # Usamos Z para el Y de Julia
+            
+            # 3. Creamos la URL con la posición del robot
+            url = f"http://localhost:8000/run?robot_x={r_x_grid}&robot_z={r_z_grid}"
+            
+            res = requests.get(url) # Llamamos a la API con la nueva URL
+                        
+            data = res.json()
+            for agent in data["agents"]:
+                if agent["type"] == "Gallina":
+                    idx = agent["id"] - 2  # id 1 = robot, los demás gallinas
+                    if 0 <= idx < len(gallinas):
+                        x, y = agent["pos"]
+                        gallinas[idx].update_from_julia(x*10, y*10) # *10 para escalar el Grid
+                        if "speed_mode" in agent:
+                            gallinas[idx].set_speed_mode(agent["speed_mode"])
+        except Exception as e:
+            pass
     
     # Dibujar la gallina
     for gallina in gallinas:
@@ -172,6 +190,7 @@ while not done:
     
     # Renderizar la escena
     display()
+    tick_counter += 1
     
     pygame.display.flip()
     clock.tick(60)
