@@ -1,18 +1,41 @@
 include("juego.jl")
 using Genie, Genie.Renderer.Json, Genie.Requests, HTTP
-using UUIDs
-using Agents
 
-route("/run") do
+route("/run", method=POST) do
+    data = jsonpayload()
+    
+    if haskey(data, "robot_x") && haskey(data, "robot_z")
+        robot_x = data["robot_x"]
+        robot_z = data["robot_z"]
+        
+        robot_x = clamp(robot_x, 1, 20)
+        robot_z = clamp(robot_z, 1, 20)
+        
+        for agent in allagents(model)
+            if agent isa Robot
+                if agent.pos != (robot_x, robot_z)
+                    move_agent!(agent, (robot_x, robot_z), model)
+                end
+                break
+            end
+        end
+    end
+    
     step!(model, agent_step!, 1)
-    agents_data = [
-        Dict(
+    
+    agents_data = []
+    for a in allagents(model)
+        agent_dict = Dict(
             "id" => a.id,
             "type" => a.type,
-            "pos" => a.pos,
-            "speed_mode" => (a isa Gallina ? a.speed_mode : "normal")
-        ) for a in allagents(model)
-    ]
+            "pos" => a.pos
+        )
+        if a isa Gallina
+            agent_dict["speed_mode"] = a.speed_mode
+        end
+        push!(agents_data, agent_dict)
+    end
+    
     json(Dict("agents" => agents_data))
 end
 

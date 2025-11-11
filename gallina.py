@@ -5,224 +5,139 @@ import math
 from objloader import OBJ
 
 class Ala:
-    """
-    Gestiona el estado y renderizado de un ala de la gallina.
-    Se mueven simétricamente (ambas suben o ambas bajan) y
-    se abren en el eje Y.
-    """
     def __init__(self, filepath):
         try:
             self.obj = OBJ(filepath, swapyz=True)
-        except FileNotFoundError:
-            print(f"Error: No se pudo cargar el modelo 3D desde {filepath}")
+        except:
             self.obj = None
-        
         self.flap_phase = 0.0
         self.flap_direction = 1
-        self.flap_speed = 3.0       # Grados por fotograma
-        self.flap_max_angle = 30.0  # Ángulo máximo 
+        self.flap_speed = 3.0
+        self.flap_max_angle = 30.0
 
     def update(self, is_moving):
-        """
-        Actualiza el ángulo del ala. Si la gallina se mueve, aletea.
-        Si está quieta, regresa a su posición original.
-        """
         if not is_moving:
             if abs(self.flap_phase) > self.flap_speed:
                 self.flap_phase -= math.copysign(self.flap_speed, self.flap_phase)
             else:
                 self.flap_phase = 0
             return
-
         self.flap_phase += self.flap_speed * self.flap_direction
-
         if abs(self.flap_phase) > self.flap_max_angle:
             self.flap_direction *= -1
 
     def draw(self, position_offset, invert_sweep=False):
-        """
-        Dibuja el ala usando una matriz de transformación pre-calculada
-        que combina la rotación en X (aleteo) y en Y (abrir/cerrar).
-        'invert_sweep' se usa para que un ala rote en +Y y la otra en -Y.
-        """
         if not self.obj:
             return
-            
         glPushMatrix()
-        
         tx, ty, tz = position_offset
-
         angle_x_flap = abs(self.flap_phase)
-
         angle_y_sweep_amount = abs(self.flap_phase) * 0.5
-        
         angle_y_sweep = angle_y_sweep_amount if invert_sweep else -angle_y_sweep_amount
-        
-        # --- Pre-cálculo de la Matriz ---
         angle_x_rad = math.radians(angle_x_flap)
         angle_y_rad = math.radians(angle_y_sweep)
-        
         cos_x = math.cos(angle_x_rad)
         sin_x = math.sin(angle_x_rad)
         cos_y = math.cos(angle_y_rad)
         sin_y = math.sin(angle_y_rad)
-        
         m0 = cos_y
         m2 = sin_y
-        
         m4 = sin_y * sin_x
         m5 = cos_x
-        m6 = -cos_y * sin_x        
-
+        m6 = -cos_y * sin_x
         m8 = -sin_y * cos_x
         m9 = sin_x
         m10 = cos_y * cos_x
-        
-        ala_matrix = [
-            m0,  0.0,  m2,  0.0,
-            m4,  m5,   m6,  0.0,
-            m8,  m9,   m10, 0.0,
-            tx,  ty,   tz,  1.0
-        ]
-        
+        ala_matrix = [m0, 0.0, m2, 0.0, m4, m5, m6, 0.0, m8, m9, m10, 0.0, tx, ty, tz, 1.0]
         glMultMatrixf(ala_matrix)
-        
         self.obj.render()
-        
         glPopMatrix()
 
-
 class Pata:
-    """
-    Gestiona el estado y renderizado de una pata de la gallina.
-    Realiza un movimiento de marcha alterno.
-    """
     def __init__(self, filepath):
         try:
             self.obj = OBJ(filepath, swapyz=True)
-        except FileNotFoundError:
-            print(f"Error: No se pudo cargar el modelo 3D desde {filepath}")
+        except:
             self.obj = None
-        
         self.march_angle = 0.0
         self.march_direction = 1
-        self.march_speed = 4.0       # Grados por fotograma
-        self.march_max_angle = 20.0  # Límite de 20 grados
-        self.return_speed = 6.0      # Velocidad de retorno a 0
+        self.march_speed = 4.0
+        self.march_max_angle = 20.0
+        self.return_speed = 6.0
 
     def update(self, is_moving):
-        """
-        Actualiza el ángulo de la pata. Si se mueve, marcha.
-        Si está quieta, regresa a su posición original.
-        """
         if not is_moving:
             if abs(self.march_angle) > self.return_speed:
                 self.march_angle -= math.copysign(self.return_speed, self.march_angle)
             else:
                 self.march_angle = 0
             return
-        
         self.march_angle += self.march_speed * self.march_direction
-        
         if abs(self.march_angle) > self.march_max_angle:
             self.march_direction *= -1
 
     def draw(self, position_offset, invert_swing=False):
-        """
-        Dibuja la pata. La rotación es sobre el eje X para
-        levantarla (como una marcha).
-        """
         if not self.obj:
             return
-            
         glPushMatrix()
-        
         angle_to_use = -self.march_angle if invert_swing else self.march_angle
         angle_rad = math.radians(angle_to_use)
-        
         tx, ty, tz = position_offset
         cos_a = math.cos(angle_rad)
         sin_a = math.sin(angle_rad)
-        
-        pata_matrix = [
-            1.0,   0.0,    0.0,   0.0,
-            0.0, cos_a,  sin_a,   0.0,
-            0.0, -sin_a,  cos_a,  0.0,
-             tx,    ty,     tz,   1.0
-        ]
-        
+        pata_matrix = [1.0, 0.0, 0.0, 0.0, 0.0, cos_a, sin_a, 0.0, 0.0, -sin_a, cos_a, 0.0, tx, ty, tz, 1.0]
         glMultMatrixf(pata_matrix)
         self.obj.render()
         glPopMatrix()
 
-
 class Gallina:
-    """
-    Clase principal de la gallina. Gestiona el estado general, movimiento,
-    y contiene las instancias de las patas y alas.
-    """
     WALK_INTERPOLATION_SPEED = 0.5  
     FLEE_INTERPOLATION_SPEED = 1.0
     WALK_ANIMATION_SPEED = 4.0      
     FLEE_ANIMATION_SPEED = 8.0
+    
     def __init__(self, filepath, initial_pos, scale):
         try:
             self.obj = OBJ(filepath, swapyz=True)
-        except FileNotFoundError:
-            print(f"Error: No se pudo cargar el modelo 3D desde {filepath}")
+        except:
             self.obj = None
-            
         self.position = list(initial_pos)
         self.scale_factor = scale
         self.rotation_y = 0.0
-        
-        self.speed = 0.5
-        self.turn_speed = 1.5
-        
-        self.base_height = 6.5      
-        
+        self.base_height = 6.5
         self.pata_izq = Pata(filepath="obj/gallina/pataizq.obj")
         self.pata_der = Pata(filepath="obj/gallina/patader.obj")
         self.ala_izq = Ala(filepath="obj/gallina/alaizq.obj")
         self.ala_der = Ala(filepath="obj/gallina/alader.obj")
-        
         pata_x = 0.24
         pata_y = -0.35 
         pata_z = 0.0
         self.offset_pata_izq = [pata_x, pata_y, pata_z]
         self.offset_pata_der = [-pata_x, pata_y, pata_z]
-
         ala_x = 0.42
         ala_y = 0.3
         ala_z = -0.31
         self.offset_ala_izq = [ala_x, ala_y, ala_z]
         self.offset_ala_der = [-ala_x, ala_y, ala_z]
-        # Interpoación
-        self.target_position = list(initial_pos) # Pos objetivo recibida de Julia
+        self.target_position = list(initial_pos)
         self.previous_position = list(initial_pos)
         self.movement_speed = self.WALK_INTERPOLATION_SPEED
         self.is_moving = False
-
         self.target_rotation_y = 0.0
         self.rotation_y = 0.0
-        
         self.pata_izq.march_speed = self.WALK_ANIMATION_SPEED
         self.pata_der.march_speed = self.WALK_ANIMATION_SPEED
         self.ala_izq.flap_speed = self.WALK_ANIMATION_SPEED / 1.3 
         self.ala_der.flap_speed = self.WALK_ANIMATION_SPEED / 1.3
         
     def set_speed_mode(self, mode):
-        """
-        Ajusta la velocidad de interpolación y animación 
-        basado en el modo recibido de Julia ("normal" o "fleeing").
-        """
         if mode == "fleeing":
             self.movement_speed = self.FLEE_INTERPOLATION_SPEED
             self.pata_izq.march_speed = self.FLEE_ANIMATION_SPEED
             self.pata_der.march_speed = self.FLEE_ANIMATION_SPEED
             self.ala_izq.flap_speed = self.FLEE_ANIMATION_SPEED / 1.3
             self.ala_der.flap_speed = self.FLEE_ANIMATION_SPEED / 1.3
-        else: # "normal"
+        else:
             self.movement_speed = self.WALK_INTERPOLATION_SPEED
             self.pata_izq.march_speed = self.WALK_ANIMATION_SPEED
             self.pata_der.march_speed = self.WALK_ANIMATION_SPEED
@@ -234,135 +149,68 @@ class Gallina:
         if new_pos != self.target_position:
             self.previous_position = list(self.position)
             self.target_position = new_pos
-            
-            self.is_moving = True # Mov: Animación|Interpolación
-            dx = self.target_position[0] - self.position[0] # Giro
+            self.is_moving = True
+            dx = self.target_position[0] - self.position[0]
             dz = self.target_position[2] - self.position[2]
-            if abs(dx) > 0.1 or abs(dz) > 0.1: # Evitar calcular atan2 si no hay movimiento
-                angle = math.degrees(math.atan2(-dz, dx)) # -dz Por el sistema de coordenadas
+            if abs(dx) > 0.1 or abs(dz) > 0.1:
+                angle = math.degrees(math.atan2(-dz, dx))
                 self.target_rotation_y = angle
-                
-        # elif self.position[0] == self.target_position[0] and self.position[2] == self.target_position[2]:
-        #     self.is_moving = False
-    
+
     def animate_step(self):
-        # Interpolación de posición
         if self.is_moving:
-            # Mover un paso hacia el target
             current_x, _, current_z = self.position
             target_x, _, target_z = self.target_position
-            
-            # Vector de movimiento
             dx = target_x - current_x
             dz = target_z - current_z
-            distance = math.sqrt(dx**2 + dz**2) # Distancia restante
+            distance = math.sqrt(dx**2 + dz**2)
             
             if distance > self.movement_speed:
-                # Mover el paso de interpolación
                 self.position[0] += dx * (self.movement_speed / distance)
                 self.position[2] += dz * (self.movement_speed / distance)
             else:
-                # Llegó al destino
                 self.position[0] = target_x
                 self.position[2] = target_z
                 self.is_moving = False
                 
-            # Animación de patas y alas
-            # La velocidad se pasa como True si se está interpolando
             self.pata_izq.update(True)
             self.pata_der.update(True)
             self.ala_izq.update(True)
             self.ala_der.update(True)
             
-            # Interpolación de rotación
-            # Solo si el robot no se está moviendo con el teclado ...
-            if abs(self.rotation_y - self.target_rotation_y) > self.turn_speed:
-                # Normaliza la diferencia de ángulo para el giro más corto
+            if abs(self.rotation_y - self.target_rotation_y) > 1.5:
                 diff = self.target_rotation_y - self.rotation_y
                 if diff > 180: diff -= 360
                 if diff < -180: diff += 360
-                
-                # Mueve la rotación un paso hacia el target
-                self.rotation_y += math.copysign(self.turn_speed, diff)
+                self.rotation_y += math.copysign(1.5, diff)
             else:
                 self.rotation_y = self.target_rotation_y
-        
         else:
-            # Si no hay movimiento, actualiza la animación para que regrese a la posición de reposo
             self.pata_izq.update(False)
             self.pata_der.update(False)
             self.ala_izq.update(False)
             self.ala_der.update(False)
 
-    def move(self, keys):
-        # """
-        # Procesa la entrada del teclado para actualizar el estado de la gallina.
-        # """
-        # is_moving = False
-
-        # if keys[pygame.K_LEFT]:
-        #     self.rotation_y += self.turn_speed
-        # if keys[pygame.K_RIGHT]:
-        #     self.rotation_y -= self.turn_speed
-            
-        # rad = math.radians(self.rotation_y)
-        # dir_x = math.cos(rad)
-        # dir_z = -math.sin(rad)
-        
-        # if keys[pygame.K_UP]:
-        #     self.position[0] += dir_x * self.speed
-        #     self.position[2] += dir_z * self.speed
-        #     is_moving = True
-        # if keys[pygame.K_DOWN]:
-        #     self.position[0] -= dir_x * self.speed
-        #     self.position[2] -= dir_z * self.speed
-        #     is_moving = True
-        
-        # self.pata_izq.update(is_moving)
-        # self.pata_der.update(is_moving)
-        # self.ala_izq.update(is_moving)
-        # self.ala_der.update(is_moving)
-        pass # LA GALLINA NO SE CONTROLARÁ CON TECLADO
-
     def draw(self):
-        """
-        Dibuja el cuerpo de la gallina y luego a sus partes hijas.
-        """
         if not self.obj:
             return
-            
         glPushMatrix()
-        
         tx, ty, tz = self.position
         ty += self.base_height 
         sx = sy = sz = self.scale_factor
         r = math.radians(self.rotation_y)
-        s = math.radians(-90.0) # Ajuste de orientación
-
+        s = math.radians(-90.0)
         cos_r, sin_r = math.cos(r), math.sin(r)
         cos_s, sin_s = math.cos(s), math.sin(s)
-
         m0 = sx * (cos_r * cos_s - sin_r * sin_s)
         m2 = sx * (-cos_r * sin_s - sin_r * cos_s)
         m5 = sy
         m8 = sz * (sin_r * cos_s + cos_r * sin_s)
         m10 = sz * (-sin_r * sin_s + cos_r * cos_s)
-
-        gallina_matrix = [
-            m0,  0.0,  m2,  0.0,
-           0.0,   m5, 0.0,  0.0,
-            m8,  0.0, m10,  0.0,
-            tx,   ty,  tz,  1.0
-        ]
-        
+        gallina_matrix = [m0, 0.0, m2, 0.0, 0.0, m5, 0.0, 0.0, m8, 0.0, m10, 0.0, tx, ty, tz, 1.0]
         glMultMatrixf(gallina_matrix)
-        
         self.obj.render()
-        
         self.pata_izq.draw(self.offset_pata_izq, invert_swing=False)
         self.pata_der.draw(self.offset_pata_der, invert_swing=True)
-        
         self.ala_izq.draw(self.offset_ala_izq, invert_sweep=False)
         self.ala_der.draw(self.offset_ala_der, invert_sweep=True)
-        
         glPopMatrix()
