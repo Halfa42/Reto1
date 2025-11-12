@@ -87,26 +87,6 @@ def draw_skybox():
     for vertices in faces:
         draw_skybox_quad(vertices)
 
-def Axis():
-    glShadeModel(GL_FLAT)
-    glLineWidth(3.0)
-    glColor3f(1.0, 0.0, 0.0)
-    glBegin(GL_LINES)
-    glVertex3f(X_MIN, 0.0, 0.0)
-    glVertex3f(X_MAX, 0.0, 0.0)
-    glEnd()
-    glColor3f(0.0, 1.0, 0.0)
-    glBegin(GL_LINES)
-    glVertex3f(0.0, Y_MIN, 0.0)
-    glVertex3f(0.0, Y_MAX, 0.0)
-    glEnd()
-    glColor3f(0.0, 0.0, 1.0)
-    glBegin(GL_LINES)
-    glVertex3f(0.0, 0.0, Z_MIN)
-    glVertex3f(0.0, 0.0, Z_MAX)
-    glEnd()
-    glLineWidth(1.0)
-
 def grid_to_opengl(grid_x, grid_z):
     """Convierte coordenadas de grilla Julia (1-20) a OpenGL"""
     norm_x = (grid_x - 1) / (GRID_SIZE - 1)
@@ -172,15 +152,12 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
     
-    # Optimización: Activar culling de caras traseras
-    glEnable(GL_CULL_FACE)
-    glCullFace(GL_BACK)
 
     # Robot con escala y posición original
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
-        initial_pos=[0.0, 10.0, 0.0],
-        scale=3.0
+        initial_pos=[0.0, 16.0, 0.0],
+        scale=1.5
     )
     
     # Gallinas distribuidas por el mapa
@@ -267,19 +244,16 @@ def display():
     gluLookAt(eye_x, eye_y, eye_z, center_x, center_y, center_z, 0.0, 1.0, 0.0)
 
     # Skybox
-    if textures:
-        glPushMatrix()
-        glDisable(GL_LIGHTING)   
-        glDisable(GL_DEPTH_TEST)
-        glDisable(GL_CULL_FACE)
-        glEnable(GL_TEXTURE_2D) 
-        draw_skybox()
-        glBindTexture(GL_TEXTURE_2D, 0)
-        glDisable(GL_TEXTURE_2D) 
-        glEnable(GL_DEPTH_TEST)
-        glEnable(GL_CULL_FACE)
-        glEnable(GL_LIGHTING)    
-        glPopMatrix()
+    glPushMatrix()
+    glDisable(GL_LIGHTING)   
+    glDisable(GL_DEPTH_TEST)
+    glEnable(GL_TEXTURE_2D) 
+    draw_skybox()
+    glBindTexture(GL_TEXTURE_2D, 0)
+    glDisable(GL_TEXTURE_2D) 
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)    
+    glPopMatrix()
 
     # Granja
     if granja:
@@ -287,18 +261,6 @@ def display():
         glMultMatrixf(granja_matrix)
         granja.render()
         glPopMatrix()
-    
-    # Ejes de coordenadas
-    Axis()
-    
-    # Suelo
-    glColor3f(0.3, 0.3, 0.3)
-    glBegin(GL_QUADS)
-    glVertex3d(X_MIN, 0, Z_MIN)
-    glVertex3d(X_MIN, 0, Z_MAX)
-    glVertex3d(X_MAX, 0, Z_MAX)
-    glVertex3d(X_MAX, 0, Z_MIN)
-    glEnd()
     
     # Dibujar robot
     if robot:
