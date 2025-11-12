@@ -40,6 +40,13 @@ julia_queue = queue.Queue(maxsize=1)
 julia_response_queue = queue.Queue(maxsize=1)
 julia_thread_running = False
 
+def check_boundaries(x, y, z, object_radius=0):
+    """Verifica y ajusta las coordenadas para que estén dentro de los límites"""
+    x = max(X_MIN + object_radius, min(X_MAX - object_radius, x))
+    y = max(Y_MIN, min(Y_MAX, y))
+    z = max(Z_MIN + object_radius, min(Z_MAX - object_radius, z))
+    return x, y, z
+
 def load_texture(filepath):
     textures.append(glGenTextures(1))
     id = len(textures) - 1
@@ -288,6 +295,8 @@ def display():
                 if 0 <= idx < len(gallinas):
                     grid_x, grid_z = agent["pos"]
                     new_x, new_z = grid_to_opengl(grid_x, grid_z)
+                    # Aplicar límites a las gallinas
+                    new_x, _, new_z = check_boundaries(new_x, 10.0, new_z, object_radius=5.0)
                     gallinas[idx].update_from_julia(new_x, new_z)
                     if "speed_mode" in agent:
                         gallinas[idx].set_speed_mode(agent["speed_mode"])
@@ -311,7 +320,12 @@ while not done:
     keys = pygame.key.get_pressed()
     
     if robot:
+        # Aplicar límites al movimiento del robot
         robot.move(keys)
+        # Verificar y ajustar posición del robot después del movimiento
+        x, y, z = robot.position
+        x, y, z = check_boundaries(x, y, z, object_radius=8.0)
+        robot.position = [x, y, z]
     
     display()
     tick_counter += 1
