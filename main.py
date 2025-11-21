@@ -35,6 +35,11 @@ granja_matrix = None
 textures = []
 SkyboxSize = 240
 
+# Variables para el texto en pantalla
+
+chickenCounter = 0
+font = None
+
 # Funciones para el Skybox ---
 
 def load_texture(filepath):
@@ -98,8 +103,13 @@ def Init():
     global robot
     global gallina
     global granja, granja_matrix # Hacer globales las nuevas variables
+    global font
+    global chickenCounter
 
     pygame.init()
+    pygame.font.init()
+    font = pygame.font.SysFont("Arial", 32, bold=True)
+
     screen = pygame.display.set_mode(
         (screen_width, screen_height), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("Captura las Gallinas")
@@ -169,6 +179,52 @@ def Init():
         load_texture("texturas/cielo.bmp")
     except Exception as e:
         print(f"Error cargando la textura del skybox: {e}")
+
+# Función para mostrar texto en la pantalla
+
+def draw_text(text, x, y, color=(255,255,255)):
+    global font
+
+    # Crear superficie del texto
+    surface = font.render(text, True, color)
+    text_data = pygame.image.tostring(surface, "RGBA", True)
+    width, height = surface.get_size()
+
+    # Cambiar a proyección 2D
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    gluOrtho2D(0, screen_width, 0, screen_height)
+
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_TEXTURE_2D)
+
+    # --- ARREGLO IMPORTANTE: alineamiento ---
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+
+    # --- ARREGLO MEGA IMPORTANTE: soporte para alfa ---
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    # (x,y) desde arriba
+    glRasterPos2i(x, screen_height - y - height)
+
+    glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+
+    glDisable(GL_BLEND)
+
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+
+    glPopMatrix()  # MODELVIEW
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
 
 
 def display():
@@ -254,7 +310,10 @@ while not done:
     # Renderizar la escena
     display()
 
+    draw_text(f"hasChicken: {robot.hasChicken}", 20, 20)
+
     pygame.display.flip()
+
     clock.tick(60)
 
 pygame.quit()
