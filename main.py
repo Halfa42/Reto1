@@ -10,6 +10,7 @@ import queue
 from robot import Cuerpo
 from gallina import Gallina
 from objloader import OBJ
+from collision_handler import CollisionHandler
 
 screen_width = 1200
 screen_height = 800
@@ -25,8 +26,13 @@ X_MIN, X_MAX = -DIMBOARD_X, DIMBOARD_X
 Y_MIN, Y_MAX = -100, 200
 Z_MIN, Z_MAX = -DIMBOARD_Z, DIMBOARD_Z
 
+# Radios de colisión para cada entidad
+ROBOT_COLLISION_RADIUS = 4.0
+CHICKEN_COLLISION_RADIUS = 3.0
+
 robot = None
 gallinas = []
+collision_handler = None
 
 UPDATE_INTERVAL = 20
 tick_counter = 0
@@ -116,7 +122,7 @@ def opengl_to_grid(opengl_x, opengl_z):
 
 def julia_communication_thread():
     """Thread separado para comunicación con Julia sin bloquear el render"""
-    session = requests.Session()  # Reutilizar conexión TCP
+    session = requests.Session()
     
     while julia_thread_running:
         try:
@@ -136,7 +142,7 @@ def julia_communication_thread():
             continue
 
 def Init():
-    global robot, gallinas, granja, granja_matrix, julia_thread_running
+    global robot, gallinas, granja, granja_matrix, julia_thread_running, collision_handler
     
     pygame.init()
     screen = pygame.display.set_mode((screen_width, screen_height), DOUBLEBUF | OPENGL)
@@ -159,7 +165,9 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
     
-
+    # Inicializar sistema de colisiones
+    collision_handler = CollisionHandler()
+    
     # Robot con escala y posición original
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
@@ -273,6 +281,7 @@ def display():
     if robot:
         robot.draw()
 
+    # Enviar posición del robot a Julia
     if tick_counter % UPDATE_INTERVAL == 0 and robot:
         r_pos_gl = robot.position
         r_x_grid, r_z_grid = opengl_to_grid(r_pos_gl[0], r_pos_gl[2])
@@ -287,6 +296,7 @@ def display():
             except queue.Full:
                 pass
     
+    # Recibir actualizaciones de Julia para las gallinas
     try:
         data = julia_response_queue.get_nowait()
         for agent in data.get("agents", []):
@@ -295,9 +305,22 @@ def display():
                 if 0 <= idx < len(gallinas):
                     grid_x, grid_z = agent["pos"]
                     new_x, new_z = grid_to_opengl(grid_x, grid_z)
-                    # Aplicar límites a las gallinas
-                    new_x, _, new_z = check_boundaries(new_x, 10.0, new_z, object_radius=5.0)
-                    gallinas[idx].update_from_julia(new_x, new_z)
+                    
+                    # Guardar posición anterior de la gallina
+                    old_x = gallinas[idx].position[0]
+                    old_z = gallinas[idx].position[2]
+                    
+                    # Aplicar límites de boundaries
+                    new_x, _, new_z = check_boundaries(new_x, 10.0, new_z, object_radius=CHICKEN_COLLISION_RADIUS)
+                    
+                    # Verificar colisiones con el collision handler
+                    valid_x, valid_z = collision_handler.get_valid_position(
+                        old_x, old_z, new_x, new_z, entity_radius=CHICKEN_COLLISION_RADIUS
+                    )
+                    
+                    # Actualizar posición solo si es válida
+                    gallinas[idx].update_from_julia(valid_x, valid_z)
+                    
                     if "speed_mode" in agent:
                         gallinas[idx].set_speed_mode(agent["speed_mode"])
     except queue.Empty:
@@ -320,12 +343,29 @@ while not done:
     keys = pygame.key.get_pressed()
     
     if robot:
-        # Aplicar límites al movimiento del robot
+        # Guardar posición anterior del robot
+        old_x = robot.position[0]
+        old_z = robot.position[2]
+        
+        # Aplicar movimiento original
         robot.move(keys)
-        # Verificar y ajustar posición del robot después del movimiento
-        x, y, z = robot.position
-        x, y, z = check_boundaries(x, y, z, object_radius=8.0)
-        robot.position = [x, y, z]
+        
+        # Verificar colisiones y ajustar posición del robot
+        new_x = robot.position[0]
+        new_z = robot.position[2]
+        
+        # Verificar límites
+        new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
+        
+        # Verificar colisiones con lago y obstáculos
+        valid_x, valid_z = collision_handler.get_valid_position(
+            old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
+        )
+        
+        # Aplicar posición válida
+        robot.position[0] = valid_x
+        robot.position[1] = new_y
+        robot.position[2] = valid_z
     
     display()
     tick_counter += 1
