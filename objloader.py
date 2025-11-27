@@ -87,16 +87,34 @@ class OBJ:
     def generate(self, no_textures=False):
         self.gl_list = glGenLists(1)
         glNewList(self.gl_list, GL_COMPILE)
+        
         if not no_textures:
             glEnable(GL_TEXTURE_2D)
+            
         glFrontFace(GL_CCW)
+        
+        # OPTIMIZACIÓN 1: Ordenar caras por material
+        self.faces.sort(key=lambda x: x[3]) 
+        
+        current_texture = None
+
         for face in self.faces:
             vertices, normals, texture_coords, material = face
             mtl = self.mtl[material]
+            
+            #  OPTIMIZACIÓN 2: Solo cambiar textura si es nueva
             if not no_textures and 'texture_Kd' in mtl:
-                glBindTexture(GL_TEXTURE_2D, mtl['texture_Kd'])
+                texture_id = mtl['texture_Kd']
+                if current_texture != texture_id:
+                    glBindTexture(GL_TEXTURE_2D, texture_id)
+                    current_texture = texture_id
             else:
+                # Si no tiene textura, desvincular para que tome el color
+                if current_texture != 0:
+                    glBindTexture(GL_TEXTURE_2D, 0)
+                    current_texture = 0
                 glColor(*mtl['Kd'])
+
             glBegin(GL_POLYGON)
             for i in range(len(vertices)):
                 if normals[i] > 0:
@@ -105,10 +123,18 @@ class OBJ:
                     glTexCoord2fv(self.texcoords[texture_coords[i] - 1])
                 glVertex3fv(self.vertices[vertices[i] - 1])
             glEnd()
+            
         if not no_textures:
             glDisable(GL_TEXTURE_2D)
+            
         glEndList()
-
+        
+        # 3: Liberar RAM 
+        self.vertices = None
+        self.normals = None
+        self.texcoords = None
+        self.faces = None
+    
     def render(self):
         glCallList(self.gl_list)
 

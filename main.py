@@ -225,38 +225,31 @@ def display():
     global tick_counter, last_robot_grid_pos
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
-    # Cámara dinámica siguiendo al robot
-    eye_x, eye_y, eye_z = 0.0, 50.0, 100.0
-    center_x, center_y, center_z = 0.0, 0.0, 0.0
-
+    # Configuración de cámara en tercera persona (Sigue al robot)
     if robot:
-        robot_x, robot_y, robot_z = robot.position
+        rad = math.radians(robot.rotation_y)
+        forward_x = math.cos(rad)
+        forward_z = -math.sin(rad)
         
-        if hasattr(robot, 'direction'):
-            robot_dir_x = robot.direction[0]
-            robot_dir_z = robot.direction[2]
-        elif hasattr(robot, 'rotation_angle'):
-            rad_angle = math.radians(robot.rotation_angle)
-            robot_dir_x = math.sin(rad_angle)
-            robot_dir_z = -math.cos(rad_angle)
-        else:
-            robot_dir_x = 0.0
-            robot_dir_z = -1.0
-            
-        scale_factor = robot.scale_factor
-        distance_behind = 15.0 * scale_factor
-        height_offset = 10.0 * scale_factor
-        eye_x = robot_x - robot_dir_x * distance_behind
-        eye_y = robot_y + height_offset
-        eye_z = robot_z - robot_dir_z * distance_behind
-        look_ahead_distance = distance_behind * 1.5
-        center_x = robot_x + robot_dir_x * look_ahead_distance
-        center_y = robot_y + height_offset * 0.5
-        center_z = robot_z + robot_dir_z * look_ahead_distance
-    
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-    gluLookAt(eye_x, eye_y, eye_z, center_x, center_y, center_z, 0.0, 1.0, 0.0)
+        distance_behind = 25.0  # Distancia detras del robot
+        camera_height = 15.0    # Altura camara
+        look_offset_y = 6.0     # Altura mira
+        
+        eye_x = robot.position[0] - (forward_x * distance_behind)
+        eye_y = robot.position[1] + camera_height
+        eye_z = robot.position[2] - (forward_z * distance_behind)
+        
+        center_x = robot.position[0]
+        center_y = robot.position[1] + look_offset_y
+        center_z = robot.position[2]
+        
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        gluLookAt(eye_x, eye_y, eye_z, center_x, center_y, center_z, 0.0, 1.0, 0.0)
+    else:
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        gluLookAt(0, 50, 100, 0, 0, 0, 0, 1, 0)
 
     # Skybox
     glPushMatrix()
@@ -270,12 +263,12 @@ def display():
     glEnable(GL_LIGHTING)    
     glPopMatrix()
 
-    # Granja
-    if granja:
-        glPushMatrix()
-        glMultMatrixf(granja_matrix)
-        granja.render()
-        glPopMatrix()
+    # Granja (Desactivada temporalmente)
+    # if granja:
+    #     glPushMatrix()
+    #     glMultMatrixf(granja_matrix)
+    #     granja.render()
+    #     glPopMatrix()
     
     # Dibujar robot
     if robot:
@@ -306,19 +299,15 @@ def display():
                     grid_x, grid_z = agent["pos"]
                     new_x, new_z = grid_to_opengl(grid_x, grid_z)
                     
-                    # Guardar posición anterior de la gallina
                     old_x = gallinas[idx].position[0]
                     old_z = gallinas[idx].position[2]
                     
-                    # Aplicar límites de boundaries
                     new_x, _, new_z = check_boundaries(new_x, 10.0, new_z, object_radius=CHICKEN_COLLISION_RADIUS)
                     
-                    # Verificar colisiones con el collision handler
                     valid_x, valid_z = collision_handler.get_valid_position(
                         old_x, old_z, new_x, new_z, entity_radius=CHICKEN_COLLISION_RADIUS
                     )
                     
-                    # Actualizar posición solo si es válida
                     gallinas[idx].update_from_julia(valid_x, valid_z)
                     
                     if "speed_mode" in agent:
@@ -343,29 +332,25 @@ while not done:
     keys = pygame.key.get_pressed()
     
     if robot:
-        # Guardar posición anterior del robot
-        old_x = robot.position[0]
-        old_z = robot.position[2]
-        
-        # Aplicar movimiento original
+        # Movimiento sin colisiones (temporal)
         robot.move(keys)
         
-        # Verificar colisiones y ajustar posición del robot
-        new_x = robot.position[0]
-        new_z = robot.position[2]
+        # Bloque de colisiones comentado
+        # old_x = robot.position[0]
+        # old_z = robot.position[2]
         
-        # Verificar límites
-        new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
+        # new_x = robot.position[0]
+        # new_z = robot.position[2]
         
-        # Verificar colisiones con lago y obstáculos
-        valid_x, valid_z = collision_handler.get_valid_position(
-            old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
-        )
+        # new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
         
-        # Aplicar posición válida
-        robot.position[0] = valid_x
-        robot.position[1] = new_y
-        robot.position[2] = valid_z
+        # valid_x, valid_z = collision_handler.get_valid_position(
+        #     old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
+        # )
+        
+        # robot.position[0] = valid_x
+        # robot.position[1] = new_y
+        # robot.position[2] = valid_z
     
     display()
     tick_counter += 1
