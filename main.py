@@ -26,7 +26,8 @@ X_MIN, X_MAX = -DIMBOARD_X, DIMBOARD_X
 Y_MIN, Y_MAX = -100, 200
 Z_MIN, Z_MAX = -DIMBOARD_Z, DIMBOARD_Z
 
-# Radios de colisión para cada entidad
+# Radio: 1 casilla Julia ≈ 11.6 OpenGL.
+# Radio 4 en Julia ≈ 45 en OpenGL.
 ROBOT_COLLISION_RADIUS = 4.0
 CHICKEN_COLLISION_RADIUS = 3.0
 
@@ -47,7 +48,6 @@ julia_response_queue = queue.Queue(maxsize=1)
 julia_thread_running = False
 
 def check_boundaries(x, y, z, object_radius=0):
-    """Verifica y ajusta las coordenadas para que estén dentro de los límites"""
     x = max(X_MIN + object_radius, min(X_MAX - object_radius, x))
     y = max(Y_MIN, min(Y_MAX, y))
     z = max(Z_MIN + object_radius, min(Z_MAX - object_radius, z))
@@ -101,7 +101,6 @@ def draw_skybox():
         draw_skybox_quad(vertices)
 
 def grid_to_opengl(grid_x, grid_z):
-    """Convierte coordenadas de grilla Julia (1-20) a OpenGL"""
     norm_x = (grid_x - 1) / (GRID_SIZE - 1)
     norm_z = (grid_z - 1) / (GRID_SIZE - 1)
     opengl_x = X_MIN + norm_x * (X_MAX - X_MIN)
@@ -109,7 +108,6 @@ def grid_to_opengl(grid_x, grid_z):
     return opengl_x, opengl_z
 
 def opengl_to_grid(opengl_x, opengl_z):
-    """Convierte coordenadas OpenGL a grilla Julia (1-20)"""
     opengl_x = max(X_MIN, min(X_MAX, opengl_x))
     opengl_z = max(Z_MIN, min(Z_MAX, opengl_z))
     norm_x = (opengl_x - X_MIN) / (X_MAX - X_MIN)
@@ -121,15 +119,12 @@ def opengl_to_grid(opengl_x, opengl_z):
     return grid_x, grid_z
 
 def julia_communication_thread():
-    """Thread separado para comunicación con Julia sin bloquear el render"""
     session = requests.Session()
-    
     while julia_thread_running:
         try:
             robot_data = julia_queue.get(timeout=0.1)
             url = "http://localhost:8000/run"
             res = session.post(url, json=robot_data, timeout=3.0)
-            
             if res.status_code == 200:
                 data = res.json()
                 try:
@@ -165,55 +160,35 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
     
-    # Inicializar sistema de colisiones
     collision_handler = CollisionHandler()
     
-    # Robot con escala y posición original
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
-        initial_pos=[0.0, 16.0, 0.0],
+        initial_pos=[0.0, 0.0, 0.0],
         scale=1.5
     )
     
-    # Gallinas distribuidas por el mapa
-    gallinas = [
-        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[-80.0, 10.0, -80.0], scale=2.5),
-        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[80.0, 10.0, -80.0], scale=2.5),
-        Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 10.0, 80.0], scale=2.5)
-    ]
+    gallinas = []
+    for i in range(10):
+        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 0.0, 0.0], scale=2.5)
+        gallinas.append(g)
 
-    # Cargar granja con escala 7.0 original
-    try:
-        granja = OBJ(filename="obj/farm/granja.obj", swapyz=True)
-    except FileNotFoundError:
-        print("Advertencia: No se pudo cargar obj/farm/granja.obj")
-        granja = None
+    # Cargar granja
+    # try:
+    #     granja = OBJ(filename="obj/farm/granja.obj", swapyz=True)
+    # except FileNotFoundError:
+    #     granja = None
     
+    # Matriz granja
     tx, ty, tz = 0.0, -5.0, 0.0
     sx = sy = sz = 7.0  
-    r = math.radians(0.0)
-    s = math.radians(0.0)
-
-    cos_r, sin_r = math.cos(r), math.sin(r)
-    cos_s, sin_s = math.cos(s), math.sin(s)
-
-    m0 = sx * (cos_r * cos_s - sin_r * sin_s)
-    m2 = sx * (-cos_r * sin_s - sin_r * cos_s)
-    m5 = sy
-    m8 = sz * (sin_r * cos_s + cos_r * sin_s)
-    m10 = sz * (-sin_r * sin_s + cos_r * cos_s)
-
-    granja_matrix = [
-        m0,  0.0,  m2,  0.0,
-        0.0,   m5, 0.0,  0.0,
-        m8,  0.0, m10,  0.0,
-        tx,   ty,  tz,  1.0
-    ]
+    m0 = sx; m5 = sy; m10 = sz
+    granja_matrix = [m0, 0, 0, 0, 0, m5, 0, 0, 0, 0, m10, 0, tx, ty, tz, 1.0]
 
     try:
         load_texture("texturas/cielo.bmp")
     except Exception as e:
-        print(f"Advertencia: Error cargando textura del skybox: {e}")
+        print(f"Error Skybox: {e}")
 
     julia_thread_running = True
     thread = Thread(target=julia_communication_thread, daemon=True)
@@ -225,15 +200,14 @@ def display():
     global tick_counter, last_robot_grid_pos
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
-    # Configuración de cámara en tercera persona (Sigue al robot)
     if robot:
         rad = math.radians(robot.rotation_y)
         forward_x = math.cos(rad)
         forward_z = -math.sin(rad)
         
-        distance_behind = 25.0  # Distancia detras del robot
-        camera_height = 15.0    # Altura camara
-        look_offset_y = 6.0     # Altura mira
+        distance_behind = 25.0
+        camera_height = 15.0
+        look_offset_y = 6.0
         
         eye_x = robot.position[0] - (forward_x * distance_behind)
         eye_y = robot.position[1] + camera_height
@@ -263,33 +237,26 @@ def display():
     glEnable(GL_LIGHTING)    
     glPopMatrix()
 
-    # Granja (Desactivada temporalmente)
+    # Dibujar Granja (comentado por ahora por pruebas en Mac)
     # if granja:
     #     glPushMatrix()
     #     glMultMatrixf(granja_matrix)
     #     granja.render()
     #     glPopMatrix()
     
-    # Dibujar robot
     if robot:
         robot.draw()
 
-    # Enviar posición del robot a Julia
+    # Envío a Julia
     if tick_counter % UPDATE_INTERVAL == 0 and robot:
         r_pos_gl = robot.position
         r_x_grid, r_z_grid = opengl_to_grid(r_pos_gl[0], r_pos_gl[2])
-        
-        current_pos = (r_x_grid, r_z_grid)
-        if current_pos != last_robot_grid_pos:
-            last_robot_grid_pos = current_pos
-            robot_data = {"robot_x": r_x_grid, "robot_z": r_z_grid}
-            
-            try:
-                julia_queue.put_nowait(robot_data)
-            except queue.Full:
-                pass
+        robot_data = {"robot_x": r_x_grid, "robot_z": r_z_grid}
+        try:
+            julia_queue.put_nowait(robot_data)
+        except queue.Full:
+            pass
     
-    # Recibir actualizaciones de Julia para las gallinas
     try:
         data = julia_response_queue.get_nowait()
         for agent in data.get("agents", []):
@@ -315,7 +282,6 @@ def display():
     except queue.Empty:
         pass
     
-    # Dibujar gallinas
     for gallina in gallinas:
         gallina.animate_step()
         gallina.draw()
@@ -330,31 +296,33 @@ while not done:
             done = True
 
     keys = pygame.key.get_pressed()
-    
     if robot:
-        # Movimiento sin colisiones (temporal)
+        # Guardar posición anterior
+        old_x = robot.position[0]
+        old_z = robot.position[2]
+        
+        # Calcular movimiento
         robot.move(keys)
         
-        # Bloque de colisiones comentado
-        # old_x = robot.position[0]
-        # old_z = robot.position[2]
-        
+        # Colisiones: (Descomentar al activar la granja)
         # new_x = robot.position[0]
         # new_z = robot.position[2]
         
+        # # Verificar límites del mapa
         # new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
         
+        # # Verificar colisiones con obstáculos
         # valid_x, valid_z = collision_handler.get_valid_position(
         #     old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
         # )
         
+        # # Aplicar posición válida
         # robot.position[0] = valid_x
         # robot.position[1] = new_y
         # robot.position[2] = valid_z
-    
+        
     display()
     tick_counter += 1
-    
     pygame.display.flip()
     clock.tick(60)
 

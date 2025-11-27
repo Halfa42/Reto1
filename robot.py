@@ -49,19 +49,14 @@ class Brazo:
             
         glPushMatrix()
         
-        # *** INICIO DE LA MODIFICACION ***
-        
         # Determina el angulo a usar, aplicando la inversion si es necesario
         angle_to_use = -self.swing_angle if invert_swing else self.swing_angle
         angle_rad = math.radians(angle_to_use)
 
-        # *** FIN DE LA MODIFICACION ***
-        
         tx, ty, tz = position_offset
         cos_a = math.cos(angle_rad)
         sin_a = math.sin(angle_rad)
         
-        # La matriz se mantiene identica, solo cambian los valores de cos_a y sin_a
         brazo_matrix = [
             1.0,   0.0,    0.0,   0.0,
             0.0, cos_a,  -sin_a,  0.0,
@@ -93,14 +88,13 @@ class Cuerpo:
         self.rotation_y = 0.0
         
         self.speed = 0.5
-        self.turn_speed = 1.5
+        self.turn_speed = 2.5
         
         self.vertical_bob = 0.0
         self.bob_angle = 0.0
         self.bob_speed = 8.0 
         self.bob_height = 1.0
         
-        # *** CAMBIO: Se levanta un poco mas el robot ***
         self.base_height = 6.5
         
         self.brazo_izq = Brazo(filepath="obj/robot/brazoizq.obj")
@@ -186,14 +180,7 @@ class Cuerpo:
         
         self.obj.render()
         
-        # *** INICIO DE LA MODIFICACION ***
-        
-        # El brazo izquierdo se dibuja normal
         self.brazo_izq.draw(self.offset_brazo_izq)
-        
-        # Al brazo derecho le pasamos la senal para que invierta el angulo
         self.brazo_der.draw(self.offset_brazo_der, invert_swing=True)
-        
-        # *** FIN DE LA MODIFICACION ***
-        
+    
         glPopMatrix()

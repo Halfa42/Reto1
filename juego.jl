@@ -10,12 +10,68 @@ end
     speed_mode::String
 end
 
-const FLEE_RADIUS = 5.0
+# Aprox 46 unidades OpenGL
+const FLEE_RADIUS = 4.0 
 
 function euclidean_distance(pos1, pos2)
     dx = pos1[1] - pos2[1]
     dy = pos1[2] - pos2[2]
     return sqrt(dx^2 + dy^2)
+end
+
+function flocking_step!(agent, model)
+    neighbors = filter(a -> a isa Gallina, collect(nearby_agents(agent, model, 5)))
+    
+    if isempty(neighbors)
+        if rand() < 0.7
+            possible = collect(nearby_positions(agent.pos, model, 1))
+            valid = [p for p in possible if isempty(p, model)]
+            if !isempty(valid)
+                move_agent!(agent, rand(valid), model)
+            end
+        end
+        return
+    end
+
+    sum_x = 0.0
+    sum_y = 0.0
+    for mate in neighbors
+        sum_x += mate.pos[1]
+        sum_y += mate.pos[2]
+    end
+    center_x = sum_x / length(neighbors)
+    center_y = sum_y / length(neighbors)
+    center_pos = (center_x, center_y)
+
+    dist_to_center = euclidean_distance(agent.pos, center_pos)
+    
+    force_random = dist_to_center < 2.0 
+    
+    if force_random || rand() < 0.4 
+        possible = collect(nearby_positions(agent.pos, model, 1))
+        valid = [p for p in possible if isempty(p, model)]
+        if !isempty(valid)
+            move_agent!(agent, rand(valid), model)
+        end
+    else
+        possible_moves = collect(nearby_positions(agent.pos, model, 1))
+        best_move = agent.pos
+        min_dist = dist_to_center
+        
+        for move in possible_moves
+            if isempty(move, model)
+                d = euclidean_distance(move, center_pos)
+                if d < min_dist
+                    min_dist = d
+                    best_move = move
+                end
+            end
+        end
+        
+        if best_move != agent.pos
+            move_agent!(agent, best_move, model)
+        end
+    end
 end
 
 function agent_step!(agent, model)
@@ -29,50 +85,57 @@ function agent_step!(agent, model)
         end
 
         if isnothing(robot)
-            neighbor_positions = collect(nearby_positions(agent.pos, model, 1))
-            valid_moves = [pos for pos in neighbor_positions if isempty(pos, model)]
-            if !isempty(valid_moves)
-                move_agent!(agent, rand(valid_moves), model)
-                agent.speed_mode = "normal"
-            end
+            flocking_step!(agent, model)
+            agent.speed_mode = "normal"
             return
         end
 
-        current_distance = euclidean_distance(agent.pos, robot.pos)
+        dist_robot = euclidean_distance(agent.pos, robot.pos)
         
-        if current_distance < FLEE_RADIUS
+        if dist_robot < FLEE_RADIUS
             possible_moves = collect(nearby_positions(agent.pos, model, 1))
-            best_move = agent.pos
-            max_dist = current_distance
+            valid_moves = [p for p in possible_moves if isempty(p, model)]
             
-            for move in possible_moves
-                if isempty(move, model)
-                    new_dist = euclidean_distance(move, robot.pos)
-                    if new_dist > max_dist
-                        max_dist = new_dist
-                        best_move = move
-                    end
+            if isempty(valid_moves)
+                return 
+            end
+
+            # Si el robot está muy cerca, corre para salir
+            if dist_robot < 2.0
+                move_agent!(agent, rand(valid_moves), model)
+                agent.speed_mode = "fleeing"
+                return
+            end
+
+            best_move = agent.pos
+            max_dist = dist_robot
+            found_better = false
+            
+            for move in valid_moves
+                new_dist = euclidean_distance(move, robot.pos)
+                if new_dist > max_dist
+                    max_dist = new_dist
+                    best_move = move
+                    found_better = true
                 end
             end
             
-            if best_move != agent.pos
+            if found_better
                 move_agent!(agent, best_move, model)
                 agent.speed_mode = "fleeing"
             else
-                agent.speed_mode = "normal"
-            end
-        else
-            neighbor_positions = collect(nearby_positions(agent.pos, model, 1))
-            valid_moves = [pos for pos in neighbor_positions if isempty(pos, model)]
-            if !isempty(valid_moves)
                 move_agent!(agent, rand(valid_moves), model)
-                agent.speed_mode = "normal"
+                agent.speed_mode = "fleeing"
             end
+
+        else
+            flocking_step!(agent, model)
+            agent.speed_mode = "normal"
         end
     end
 end
 
-function initialize_model(; n_gallinas=3, dims=(20,20))
+function initialize_model(; n_gallinas=10, dims=(20,20))
     space = GridSpace(dims, periodic=false)
     model = ABM(Union{Gallina, Robot}, space; agent_step!)
 
