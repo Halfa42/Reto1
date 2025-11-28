@@ -43,6 +43,10 @@ granja_matrix = None
 textures = []
 SkyboxSize = 245
 
+chickenCounter = 0
+font = None
+hunting = False
+
 julia_queue = queue.Queue(maxsize=1)
 julia_response_queue = queue.Queue(maxsize=1)
 julia_thread_running = False
@@ -137,10 +141,11 @@ def julia_communication_thread():
             continue
 
 def Init():
-    global robot, gallinas, granja, granja_matrix, julia_thread_running, collision_handler
+    global robot, gallinas, granja, granja_matrix, julia_thread_running, collision_handler, font, chickenCounter
     
     pygame.init()
     screen = pygame.display.set_mode((screen_width, screen_height), DOUBLEBUF | OPENGL)
+    font = pygame.font.SysFont("Arial", 32, bold=True)
     pygame.display.set_caption("Control de Agentes")
 
     glMatrixMode(GL_PROJECTION)
@@ -194,9 +199,73 @@ def Init():
     thread = Thread(target=julia_communication_thread, daemon=True)
     thread.start()
 
+def draw_text(text, x, y, color=(255,255,255)):
+    global font
+
+    # Crear superficie del texto
+    surface = font.render(text, True, color)
+    text_data = pygame.image.tostring(surface, "RGBA", True)
+    width, height = surface.get_size()
+
+    # Cambiar a proyección 2D
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    gluOrtho2D(0, screen_width, 0, screen_height)
+
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_TEXTURE_2D)
+
+    # --- ARREGLO IMPORTANTE: alineamiento ---
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+
+    # --- ARREGLO MEGA IMPORTANTE: soporte para alfa ---
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    # (x,y) desde arriba
+    glRasterPos2i(x, screen_height - y - height)
+
+    glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+
+    glDisable(GL_BLEND)
+
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+
+    glPopMatrix()  # MODELVIEW
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
+def try_pickup_chicken():
+    global robot, gallinas
+
+    if robot.hasChicken:
+        return  # ya tiene una
+
+    rx, _, rz = robot.position
+    for gallina in gallinas:
+        gx, _, gz = gallina.position
+        dx = rx - gx
+        dz = rz - gz
+        dist = math.sqrt(dx*dx + dz*dz)
+
+        if dist < 8.0:
+            robot.hasChicken = True
+            robot.takingChicken = True
+            gallina.is_captured = True
+            robot.captured_chicken = gallina
+            return True
+
 last_robot_grid_pos = None
 
-def display():
+def display(keys):
     global tick_counter, last_robot_grid_pos
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
@@ -283,8 +352,15 @@ def display():
         pass
     
     for gallina in gallinas:
+        if gallina.is_captured and robot:
+            gallina.attached_to = (
+                robot.position[0],
+                robot.position[1] + robot.base_height,
+                robot.position[2],
+                robot.rotation_y
+            )
         gallina.animate_step()
-        gallina.draw()
+        gallina.draw(keys)
 
 done = False
 Init()
@@ -296,6 +372,8 @@ while not done:
             done = True
 
     keys = pygame.key.get_pressed()
+    if keys[pygame.K_SPACE]:
+        hunting = True
     if robot:
         # Guardar posición anterior
         old_x = robot.position[0]
@@ -303,6 +381,8 @@ while not done:
         
         # Calcular movimiento
         robot.move(keys)
+        if try_pickup_chicken():
+            chickenCounter += 1
         
         # Colisiones: (Descomentar al activar la granja)
         # new_x = robot.position[0]
@@ -321,8 +401,9 @@ while not done:
         # robot.position[1] = new_y
         # robot.position[2] = valid_z
         
-    display()
+    display(keys)
     tick_counter += 1
+    draw_text(f"{chickenCounter}/10 gallinas recolectadas", 20, 20)
     pygame.display.flip()
     clock.tick(60)
 

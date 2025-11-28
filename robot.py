@@ -20,11 +20,15 @@ class Brazo:
         self.swing_direction = 1
         self.swing_speed = 2.5 # Grados por fotograma
 
-    def update(self, is_moving):
+    def update(self, is_moving, hasChicken):
         """
         Actualiza el ángulo del brazo. Si el robot se mueve, se balancea.
         Si está quieto, regresa a su posición original.
         """
+
+        if hasChicken:
+            self.swing_angle = -90
+            return
         if not is_moving:
             # Regresar suavemente a la posicion inicial
             if abs(self.swing_angle) > self.swing_speed:
@@ -50,7 +54,10 @@ class Brazo:
         glPushMatrix()
         
         # Determina el angulo a usar, aplicando la inversion si es necesario
-        angle_to_use = -self.swing_angle if invert_swing else self.swing_angle
+        if invert_swing and self.swing_angle != -90:
+            angle_to_use = -self.swing_angle
+        else:
+            angle_to_use = self.swing_angle
         angle_rad = math.radians(angle_to_use)
 
         tx, ty, tz = position_offset
@@ -90,6 +97,8 @@ class Cuerpo:
         self.speed = 0.5
         self.turn_speed = 2.5
         
+        self.hasChicken = False
+        self.takingChicken = False
         self.vertical_bob = 0.0
         self.bob_angle = 0.0
         self.bob_speed = 8.0 
@@ -118,6 +127,11 @@ class Cuerpo:
             self.rotation_y += self.turn_speed
         if keys[pygame.K_RIGHT]:
             self.rotation_y -= self.turn_speed
+        if keys[pygame.K_q] and self.hasChicken:
+            self.hasChicken = False
+            self.takingChicken = False
+        if keys[pygame.K_f]:
+            self.takingChicken = True
             
         rad = math.radians(self.rotation_y)
         dir_x = math.cos(rad)
@@ -134,8 +148,14 @@ class Cuerpo:
             is_moving = True
 
         if is_moving_forward:
-            self.bob_angle = (self.bob_angle + self.bob_speed) % 360
-            self.vertical_bob = abs(math.sin(math.radians(self.bob_angle))) * self.bob_height
+            self.bob_angle = (
+                (self.bob_angle + self.bob_speed) % 360
+                if not self.hasChicken
+                else (self.bob_angle + self.bob_speed * 0.6) % 360
+            )
+            height = self.bob_height if not self.hasChicken else (self.bob_height * 0.4)
+
+            self.vertical_bob = abs(math.sin(math.radians(self.bob_angle))) * height
         else:
             if self.vertical_bob > 0.1:
                 self.vertical_bob -= 0.1
@@ -143,8 +163,8 @@ class Cuerpo:
                 self.vertical_bob = 0
                 self.bob_angle = 0
         
-        self.brazo_izq.update(is_moving)
-        self.brazo_der.update(is_moving)
+        self.brazo_izq.update(is_moving, self.hasChicken)
+        self.brazo_der.update(is_moving, self.hasChicken)
 
     def draw(self):
         """

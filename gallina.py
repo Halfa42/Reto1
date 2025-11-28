@@ -113,6 +113,10 @@ class Gallina:
         self.is_moving = False
         self.target_rotation_y = 0.0
         self.current_mode = "normal"
+        self.is_captured = False
+        self.pickup_progress = 0.0
+        self.pickup_speed = 0.05
+
 
     def set_speed_mode(self, mode):
         self.current_mode = mode
@@ -142,6 +146,14 @@ class Gallina:
                 self.target_rotation_y = angle
 
     def animate_step(self):
+
+        if self.is_captured:
+            self.pata_izq.update(False)
+            self.pata_der.update(False)
+            self.ala_izq.update(False)
+            self.ala_der.update(False)
+            return
+    
         if self.is_moving:
             current_x, _, current_z = self.position
             target_x, _, target_z = self.target_position
@@ -177,8 +189,62 @@ class Gallina:
             self.ala_izq.update(force_move)
             self.ala_der.update(force_move)
 
-    def draw(self):
+    def draw(self, keys):
         if not self.obj: return
+
+        if self.is_captured:
+
+            if keys[pygame.K_LEFT]:
+                self.rotation_y += 2.5
+            if keys[pygame.K_RIGHT]:
+                self.rotation_y -= 2.5
+            if keys[pygame.K_q]:
+                self.is_captured = False
+                return
+                
+            glPushMatrix()
+
+            rx, ry, rz, rrot = self.attached_to
+            r = math.radians(rrot)
+            s = math.radians(-90)
+            local_x = 5
+            local_y = 0
+            local_z = 0
+
+            cos_r, sin_r = math.cos(r), math.sin(r)
+            cos_s, sin_s = math.cos(s), math.sin(s)
+
+            sx = sy = sz = self.scale_factor
+            s = math.radians(-90.0)
+            cos_s = math.cos(s)
+            sin_s = math.sin(s)
+
+            m0 = sx * (cos_r * cos_s - sin_r * sin_s)
+            m2 = sx * (-cos_r * sin_s - sin_r * cos_s)
+            m8 = sz * (sin_r * cos_s + cos_r * sin_s)
+            m10 = sz * (-sin_r * sin_s + cos_r * cos_s)
+
+            r = math.radians(rrot)
+            dir_x = math.cos(r)
+            dir_z = -math.sin(r)
+
+            world_x = rx + 5 * dir_x
+            world_y = ry
+            world_z = rz + 5 * dir_z
+
+            cuerpo_matrix = [
+                m0,  0.0,  m2,  0.0,
+                0.0, sy,   0.0, 0.0,
+                m8,  0.0, m10,  0.0,
+                world_x, world_y, world_z, 1.0
+            ]
+            
+            glMultMatrixf(cuerpo_matrix)
+
+            self.obj.render()
+            glPopMatrix()
+            return
+
         glPushMatrix()
         tx, ty, tz = self.position
         ty += self.base_height 
