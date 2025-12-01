@@ -4,6 +4,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 import math
 import requests
+import random
 from threading import Thread
 import queue
 
@@ -216,9 +217,19 @@ def Init():
     
     gallinas = []
     for i in range(10):
-        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 15.0, 0.0], scale=2.5)
+        while True:
+            rx = random.uniform(X_MIN + 20, X_MAX - 20) # Dentro de los límites
+            rz = random.uniform(Z_MIN + 20, Z_MAX - 20)
+            dist_robot = math.sqrt(rx**2 + rz**2) # Distancia al centro
+            dx_c = rx - CORRAL_POS[0] # Distancia al corral
+            dz_c = rz - CORRAL_POS[1]
+            dist_corral = math.sqrt(dx_c**2 + dz_c**2)
+            # - A más de 40u del robot | Estar a más de 30 unidades del centro del corral (para no aparecer dentro)
+            if dist_robot > 40 and dist_corral > 30:
+                break
+        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[rx, 15.0, rz], scale=2.5)
         gallinas.append(g)
-
+        
     # Cargar granja
     try:
         granja = OBJ(filename="obj/farm/granja.obj", swapyz=True)
