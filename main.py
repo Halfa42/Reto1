@@ -231,7 +231,7 @@ def Init():
     
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
-        initial_pos=[0.0, 15.0, 0.0],
+        initial_pos=[0.0, 13.0, 0.0],
         scale=1.5
     )
     
@@ -247,7 +247,7 @@ def Init():
             # - A más de 40u del robot | Estar a más de 30 unidades del centro del corral (para no aparecer dentro)
             if dist_robot > 40 and dist_corral > 30:
                 break
-        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[rx, 15.0, rz], scale=2.5)
+        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[rx, 11.5, rz], scale=2.5)
         gallinas.append(g)
         
     # Cargar granja
