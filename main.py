@@ -51,6 +51,47 @@ julia_queue = queue.Queue(maxsize=1)
 julia_response_queue = queue.Queue(maxsize=1)
 julia_thread_running = False
 
+
+DROP_TRIGGER_POS = (-33.568980497568305, 22.993619257984662)
+CORRAL_POS = (-53.79578001052002, 49.910016634870345)
+DROP_TRIGGER_RADIUS = 5.0
+
+
+triangle_spin = 0.0
+triangle_height_phase = 0.0
+TRIANGLE_BASE_X, TRIANGLE_BASE_Z = DROP_TRIGGER_POS
+
+def check_drop_chicken_in_corral():
+    global robot, chickenCounter
+
+    # El robot no tiene gallina → no hacer nada
+    if not robot.hasChicken:
+        return
+
+    # Posición del robot
+    rx, ry, rz = robot.position
+    tx, tz = DROP_TRIGGER_POS
+
+    # Distancia al punto objetivo
+    dist = math.sqrt((rx - tx)**2 + (rz - tz)**2)
+
+    if dist <= DROP_TRIGGER_RADIUS:
+
+        gallina = robot.captured_chicken
+        if gallina:
+            # Teletransportar la gallina al corral
+            gallina.position = [CORRAL_POS[0], 15.0, CORRAL_POS[1]]
+            gallina.is_captured = False
+            gallina.attached_to = None
+            gallina.corral = True
+            chickenCounter += 1
+
+        # Resetear estado del robot
+        robot.hasChicken = False
+        robot.takingChicken = False
+        robot.captured_chicken = None
+
+
 def check_boundaries(x, y, z, object_radius=0):
     x = max(X_MIN + object_radius, min(X_MAX - object_radius, x))
     y = max(Y_MIN, min(Y_MAX, y))
@@ -169,20 +210,20 @@ def Init():
     
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
-        initial_pos=[0.0, 0.0, 0.0],
+        initial_pos=[0.0, 15.0, 0.0],
         scale=1.5
     )
     
     gallinas = []
     for i in range(10):
-        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 0.0, 0.0], scale=2.5)
+        g = Gallina(filepath="obj/gallina/gallina.obj", initial_pos=[0.0, 15.0, 0.0], scale=2.5)
         gallinas.append(g)
 
     # Cargar granja
-    # try:
-    #     granja = OBJ(filename="obj/farm/granja.obj", swapyz=True)
-    # except FileNotFoundError:
-    #     granja = None
+    try:
+        granja = OBJ(filename="obj/farm/granja.obj", swapyz=True)
+    except FileNotFoundError:
+        granja = None
     
     # Matriz granja
     tx, ty, tz = 0.0, -5.0, 0.0
@@ -243,6 +284,42 @@ def draw_text(text, x, y, color=(255,255,255)):
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
 
+def draw_checkpoint_triangle(x, z, spin, height_phase):
+    glPushMatrix()
+
+    # Altura animada
+    y = 20.0 + math.sin(height_phase) * 1.5  
+    glTranslatef(x, y, z)
+
+    # Rotar la flecha en su propio eje
+    glRotatef(spin, 0, 1, 0)
+
+    glDisable(GL_LIGHTING)
+
+    # Color
+    glColor3f(1.0, 1.0, 0.0)
+
+    # --- Flecha perfectamente PLANA y orientada hacia ADELANTE ---
+    # Punta = centro (0,0,0)
+    # Base hacia atrás = z negativo (apunta hacia z positivo)
+    glBegin(GL_TRIANGLES)
+    glVertex3f(0.0, 0.0, 0.0)     # PUNTA en (x, z)
+    glVertex3f(2.0,  4.0, 0.0)   # Base izquierda
+    glVertex3f( -2.0, 4.0, 0.0)   # Base derecha
+    glEnd()
+
+    # Borde
+    glColor3f(0.2, 0.2, 0.0)
+    glLineWidth(2)
+    glBegin(GL_LINE_LOOP)
+    glVertex3f(0.0, 0.0, 0.0)     # PUNTA en (x, z)
+    glVertex3f(2.0,  4.0, 0.0)   # Base izquierda
+    glVertex3f( -2.0, 4.0, 0.0)
+    glEnd()
+
+    glEnable(GL_LIGHTING)
+    glPopMatrix()
+
 def try_pickup_chicken():
     global robot, gallinas
 
@@ -266,14 +343,20 @@ def try_pickup_chicken():
 last_robot_grid_pos = None
 
 def display(keys):
-    global tick_counter, last_robot_grid_pos
+    global tick_counter, last_robot_grid_pos, triangle_spin, triangle_height_phase
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
+    triangle_spin += 1.5
+    triangle_height_phase += 0.05
+
+    if triangle_spin > 360:
+        triangle_spin = 0
+        
     if robot:
         rad = math.radians(robot.rotation_y)
         forward_x = math.cos(rad)
         forward_z = -math.sin(rad)
-        
+            
         distance_behind = 25.0
         camera_height = 15.0
         look_offset_y = 6.0
@@ -306,12 +389,19 @@ def display(keys):
     glEnable(GL_LIGHTING)    
     glPopMatrix()
 
+    draw_checkpoint_triangle(
+        TRIANGLE_BASE_X,
+        TRIANGLE_BASE_Z,
+        triangle_spin,
+        triangle_height_phase
+    )
+
     # Dibujar Granja (comentado por ahora por pruebas en Mac)
-    # if granja:
-    #     glPushMatrix()
-    #     glMultMatrixf(granja_matrix)
-    #     granja.render()
-    #     glPopMatrix()
+    if granja:
+        glPushMatrix()
+        glMultMatrixf(granja_matrix)
+        granja.render()
+        glPopMatrix()
     
     if robot:
         robot.draw()
@@ -337,12 +427,19 @@ def display(keys):
                     
                     old_x = gallinas[idx].position[0]
                     old_z = gallinas[idx].position[2]
+                    c = gallinas[idx].corral
+                    if c:
+                        print((old_x, old_z))
+
+                    valid_x, valid_z = collision_handler.get_valid_position(
+                        old_x, old_z, new_x, new_z,
+                        entity_radius=CHICKEN_COLLISION_RADIUS,
+                        captured=gallinas[idx].is_captured,
+                        corral=c
+                    )
+
                     
                     new_x, _, new_z = check_boundaries(new_x, 10.0, new_z, object_radius=CHICKEN_COLLISION_RADIUS)
-                    
-                    valid_x, valid_z = collision_handler.get_valid_position(
-                        old_x, old_z, new_x, new_z, entity_radius=CHICKEN_COLLISION_RADIUS
-                    )
                     
                     gallinas[idx].update_from_julia(valid_x, valid_z)
                     
@@ -381,25 +478,24 @@ while not done:
         
         # Calcular movimiento
         robot.move(keys)
-        if try_pickup_chicken():
-            chickenCounter += 1
-        
+        check_drop_chicken_in_corral()
+        try_pickup_chicken()
         # Colisiones: (Descomentar al activar la granja)
-        # new_x = robot.position[0]
-        # new_z = robot.position[2]
+        new_x = robot.position[0]
+        new_z = robot.position[2]
         
         # # Verificar límites del mapa
-        # new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
+        new_x, new_y, new_z = check_boundaries(new_x, robot.position[1], new_z, object_radius=ROBOT_COLLISION_RADIUS)
         
         # # Verificar colisiones con obstáculos
-        # valid_x, valid_z = collision_handler.get_valid_position(
-        #     old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
-        # )
+        valid_x, valid_z = collision_handler.get_valid_position(
+            old_x, old_z, new_x, new_z, entity_radius=ROBOT_COLLISION_RADIUS
+        )
         
         # # Aplicar posición válida
-        # robot.position[0] = valid_x
-        # robot.position[1] = new_y
-        # robot.position[2] = valid_z
+        robot.position[0] = valid_x
+        robot.position[1] = new_y
+        robot.position[2] = valid_z
         
     display(keys)
     tick_counter += 1

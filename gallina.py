@@ -116,6 +116,8 @@ class Gallina:
         self.is_captured = False
         self.pickup_progress = 0.0
         self.pickup_speed = 0.05
+        self.corral = False
+        self.corral_target = None
 
 
     def set_speed_mode(self, mode):
@@ -153,7 +155,38 @@ class Gallina:
             self.ala_izq.update(False)
             self.ala_der.update(False)
             return
-    
+        
+        # --- NUEVA IA PARA CORRAL ---
+        if self.corral and not self.is_captured:
+            # Si no hay target, creamos uno
+            if self.corral_target is None:
+                self.corral_target = self.get_random_corral_position()
+
+            # Desplazamiento hacia el target
+            tx, tz = self.corral_target
+            cx, _, cz = self.position
+            dx = tx - cx
+            dz = tz - cz
+            dist = math.sqrt(dx*dx + dz*dz)
+
+            # Si llegó, generar otro target
+            if dist < 1.0:
+                self.corral_target = self.get_random_corral_position()
+            else:
+                # Mover hacia el target
+                step = self.movement_speed
+                self.position[0] += dx * (step / max(dist, 0.0001))
+                self.position[2] += dz * (step / max(dist, 0.0001))
+
+                # Actualizar animaciones
+                self.pata_izq.update(True)
+                self.pata_der.update(True)
+                self.ala_izq.update(True)
+                self.ala_der.update(True)
+
+            return
+
+            
         if self.is_moving:
             current_x, _, current_z = self.position
             target_x, _, target_z = self.target_position
@@ -263,3 +296,15 @@ class Gallina:
         self.ala_izq.draw(self.offset_ala_izq, False)
         self.ala_der.draw(self.offset_ala_der, True)
         glPopMatrix()   
+
+    def get_random_corral_position(self):
+        # Ajusta estas coordenadas al rectángulo exacto del corral
+        min_x = -90
+        max_x = -30
+        min_z = 30
+        max_z = 90
+
+        import random
+        x = random.uniform(min_x, max_x)
+        z = random.uniform(min_z, max_z)
+        return (x, z)

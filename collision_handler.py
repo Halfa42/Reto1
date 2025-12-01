@@ -27,6 +27,15 @@ class CollisionHandler:
     SMALL_OBJECT_RADIUS = 1.5  # Radio para objetos pequeños
     
     def __init__(self):
+
+        self.corral_rect = RectangularObstacle([
+            (-83,  79),
+            (-63,  79),
+            (-63,  59),
+            (-83,  59)
+        ])
+                
+                
         # Lista de obstáculos circulares (árboles)
         tree_coords = [
             (12.393, 13.74), (14.078, 10.474), (6.3949, 10.571),
@@ -75,6 +84,20 @@ class CollisionHandler:
         for rect_coords in rectangular_coords:
             scaled_coords = [(x * self.SCALE, z * self.SCALE) for x, z in rect_coords]
             self.rectangular_obstacles.append(RectangularObstacle(scaled_coords))
+
+    def is_inside_corral(self, x, z, entity_radius=0):
+        rect = self.corral_rect
+        
+        # bounding box simple
+        if (x + entity_radius < rect.min_x or
+            x - entity_radius > rect.max_x or
+            z + entity_radius < rect.min_z or
+            z - entity_radius > rect.max_z):
+            return False
+
+        # chequeo preciso
+        return self.point_in_polygon(x, z, rect.vertices)
+
     
     def point_in_polygon(self, x, z, vertices):
         """
@@ -156,33 +179,37 @@ class CollisionHandler:
         
         return True
     
-    def get_valid_position(self, old_x, old_z, new_x, new_z, entity_radius=8.0):
-        """
-        Intenta encontrar una posición válida cercana a la deseada
-        Si la posición nueva tiene colisión, devuelve la posición antigua
+    def get_valid_position(self, old_x, old_z, new_x, new_z, entity_radius=8.0, captured=False, corral=False):
+
+        # === Si está en el corral, solo validar dentro del corral ===
+        if corral == True:
+            if self.is_inside_corral(new_x, new_z, entity_radius):
+                return new_x, new_z
+            
+            # intentar moverse en x solamente
+            if self.is_inside_corral(new_x, old_z, entity_radius):
+                return new_x, old_z
+
+            # intentar moverse en z solamente
+            if self.is_inside_corral(old_x, new_z, entity_radius):
+                return old_x, new_z
+
+            # si nada funciona, se queda
+            return old_x, old_z
         
-        Args:
-            old_x, old_z: Posición actual
-            new_x, new_z: Posición deseada
-            entity_radius: Radio de colisión de la entidad
-        
-        Returns:
-            tuple: (x, z) posición válida
-        """
-        # Si la nueva posición es válida, usarla
-        if self.is_valid_position(new_x, new_z, entity_radius):
-            return new_x, new_z
-        
-        # Si no es válida, intentar movimiento solo en X
-        if self.is_valid_position(new_x, old_z, entity_radius):
-            return new_x, old_z
-        
-        # Si no es válida, intentar movimiento solo en Z
-        if self.is_valid_position(old_x, new_z, entity_radius):
-            return old_x, new_z
-        
-        # Si ninguna funciona, quedarse en la posición actual
+        # === Movimiento normal (fuera del corral) ===
+        if captured == False:
+            if self.is_valid_position(new_x, new_z, entity_radius):
+                return new_x, new_z
+            if self.is_valid_position(new_x, old_z, entity_radius):
+                return new_x, old_z
+            if self.is_valid_position(old_x, new_z, entity_radius):
+                return old_x, new_z
+
+            return old_x, old_z
+
         return old_x, old_z
+
     
     def add_circular_obstacle(self, x, z, radius=None):
         """Agrega un nuevo obstáculo circular"""
