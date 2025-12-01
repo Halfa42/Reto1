@@ -42,7 +42,7 @@ tick_counter = 0
 granja = None
 granja_matrix = None
 textures = []
-SkyboxSize = 245
+SkyboxSize = 227
 
 chickenCounter = 0
 font = None
@@ -103,8 +103,8 @@ def load_texture(filepath):
     textures.append(glGenTextures(1))
     id = len(textures) - 1
     glBindTexture(GL_TEXTURE_2D, textures[id])
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
     try:
@@ -127,7 +127,7 @@ def draw_skybox_quad(vertices):
 def draw_skybox():
     if not textures:
         return
-    glBindTexture(GL_TEXTURE_2D, textures[0])
+    
     half_size = SkyboxSize / 2
     faces = [
         [(-half_size, half_size, -half_size), (half_size, half_size, -half_size),
@@ -143,7 +143,12 @@ def draw_skybox():
         [(-half_size, -half_size, half_size), (half_size, -half_size, half_size),
         (half_size, -half_size, -half_size), (-half_size, -half_size, -half_size)]
     ]
-    for vertices in faces:
+    
+    texture_indices = [0, 0, 1, 1, 2, 2]
+
+    for i, vertices in enumerate(faces):
+        tex_idx = texture_indices[i] if len(textures) > texture_indices[i] else 0
+        glBindTexture(GL_TEXTURE_2D, textures[tex_idx])
         draw_skybox_quad(vertices)
 
 def grid_to_opengl(grid_x, grid_z):
@@ -207,7 +212,22 @@ def Init():
     
     glEnable(GL_COLOR_MATERIAL)
     
+    try:
+        # Carga la canción desde la carpeta Musica
+        pygame.mixer.music.load("Musica/musica_fondo.mp3")
+        
+        # Ajusta el volumen. 1.0 es el máximo, 0.0 es silencio.
+        # Un valor como 0.4 es un buen punto de partida para que no esté muy fuerte.
+        pygame.mixer.music.set_volume(0.4)
+        
+        # Reproduce la música. El argumento loops=-1 hace que se repita infinitamente.
+        pygame.mixer.music.play(loops=-1)
+        
+    except pygame.error as e:
+        print(f"No se pudo cargar o reproducir la música: {e}")
+    
     collision_handler = CollisionHandler()
+    
     
     robot = Cuerpo(
         filepath="obj/robot/robot.obj",
@@ -244,6 +264,8 @@ def Init():
 
     try:
         load_texture("texturas/cielo.bmp")
+        load_texture("texturas/cielo1.bmp")
+        load_texture("texturas/cielo2.bmp")
     except Exception as e:
         print(f"Error Skybox: {e}")
 
@@ -510,7 +532,11 @@ while not done:
         
     display(keys)
     tick_counter += 1
-    draw_text(f"{chickenCounter}/10 gallinas recolectadas", 20, 20)
+    if chickenCounter >= 10:
+        draw_text("¡VICTORIA! HAS ATRAPADO A TODAS", screen_width // 2 - 200, screen_height // 2, (0,255,0))
+    else:
+        draw_text(f"{chickenCounter}/10 gallinas recolectadas", 20, 20)
+        
     pygame.display.flip()
     clock.tick(60)
 
